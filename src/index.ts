@@ -4,8 +4,10 @@ import { createHash } from 'node:crypto'
 import { copyFile, cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { cpus } from 'node:os'
 import { join, resolve } from 'node:path'
+import sourcemap from 'source-map-support'
 import { parseWaveFileBuffer } from './parse'
 import type { Bank, BankConfig, EncodeConfig, Media } from './types'
+sourcemap.install()
 
 function copyDirectory(source: string, target: string): Promise<void> {
   return cp(source, target, { recursive: true })
@@ -350,7 +352,8 @@ export async function main(config: EncodeConfig): Promise<void> {
 async function if_main() {
   // check if this is the main file in modern systems
   // and then if not modern check with node if is main file
-  if (import.meta.url === `file://${process.argv[1]}` || (require as any)?.main === module) {
+  const _module = typeof module === 'undefined' ? undefined : module
+  if (import.meta.url === `file://${process.argv[1]}` || (require as any)?.main === _module) {
     let file = process.argv[2]
     if (file === undefined) {
       throw new Error('Must specify config file. For example `bun encoder config.ts --force`')

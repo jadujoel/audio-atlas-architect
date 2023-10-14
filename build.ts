@@ -12,6 +12,7 @@ await build({
   sourcemap: true,
   external: [
     "ffmpeg-helper",
-    "fsevents"
+    "fsevents",
+    "source-map-support"
   ]
 })
