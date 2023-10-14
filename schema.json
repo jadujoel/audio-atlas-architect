@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "cache": {
+      "type": "string"
+    },
+    "banks": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/BankConfig"
+      }
+    },
+    "rootdir": {
+      "type": "string"
+    },
+    "outdir": {
+      "type": "string"
+    },
+    "legacy_support": {
+      "type": "boolean"
+    },
+    "concurrency": {
+      "type": "number"
+    }
+  },
+  "required": ["name", "cache", "banks", "rootdir", "outdir", "legacy_support"],
+  "definitions": {
+    "BankConfig": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "type": "string"
+        },
+        "rootdir": {
+          "type": "string"
+        },
+        "outdir": {
+          "type": "string"
+        },
+        "media": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/EntryConfig"
+          }
+        },
+        "extends": {
+          "type": "string"
+        }
+      },
+      "required": ["base", "rootdir", "outdir", "media"]
+    },
+    "EntryConfig": {
+      "type": "object",
+      "properties": {
+        "channels": {
+          "type": "integer",
+          "enum": [1, 2]
+        },
+        "bitrate": {
+          "type": "number"
+        },
+        "localization": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "extends": {
+          "type": "string"
+        }
+      },
+      "required": ["channels", "bitrate", "localization"]
+    }
+  }
+}

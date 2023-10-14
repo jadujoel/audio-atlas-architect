@@ -1,0 +1,34 @@
+{
+  "name": "audio-atlas-architect",
+  "version": "0.1.1",
+  "description": "Encode Game Sounds into Sound Banks with json metadata",
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "aaa": "./dist/index.mjs",
+    "audio-atlas-architect": "./dist/index.mjs"
+  },
+  "scripts": {
+    "postinstall": "chmod +x dist/index.mjs",
+    "build": "bash build.sh",
+    "clean": "rm -rf dist public .cache"
+  },
+  "keywords": [],
+  "author": "joel.lof@icloud.com",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "0.19.4"
+  },
+  "dependencies": {
+    "bun-types": "1.0.6",
+    "chokidar": "3.5.3",
+    "ffmpeg-helper": "0.1.0",
+    "neverthrow": "6.0.0",
+    "typescript": "5.2.2"
+  },
+  "files": [
+    "dist",
+    "tsconfig.json",
+    "schema.json"
+  ]
+}

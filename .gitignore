@@ -1,0 +1,8 @@
+node_modules
+.cache
+dist
+sounds
+*.DS_Store
+*.js
+bun.lockb
+public
