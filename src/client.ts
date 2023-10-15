@@ -77,6 +77,7 @@ export interface BankLoaderProperties {
 export interface LoadReturn {
   readonly promise: Promise<Result<AudioBuffer, Error>>
   readonly buffer: AudioBuffer
+  failed?: true
 }
 
 export class BankLoader {
@@ -92,6 +93,7 @@ export class BankLoader {
     this.empty = {
       promise: Promise.resolve(err(new Error('empty buffer'))),
       buffer: emptyBuffer,
+      failed: true
     }
   }
 
@@ -136,20 +138,24 @@ export class BankLoader {
       async resolve => {
         const response = await fetch(url).catch(_ => undefined)
         if (response === undefined) {
+          newItem.failed = true
           resolve(err(new Error(`failed to fetch ${url}`)))
           return
         }
         if (!response.ok) {
+          newItem.failed = true
           resolve(err(new Error(`server return bad response for ${response.url} with status ${response.status}`)))
           return
         }
         const array = await response.arrayBuffer().catch(_ => undefined)
         if (array === undefined) {
+          newItem.failed = true
           resolve(err(new Error(`failed to convert response to arraybuffer for ${response.url}`)))
           return
         }
         const decoded = await context.decodeAudioData(array).catch(_ => undefined)
         if (decoded === undefined) {
+          newItem.failed = true
           resolve(err(new Error(`failed to decode audio data for ${media.name}`)))
           return
         }
@@ -158,6 +164,7 @@ export class BankLoader {
             buffer.copyToChannel(decoded.getChannelData(channel), channel)
           }
         } catch (e) {
+          newItem.failed = true
           resolve(err(new Error(`failed to copy audio data using copyToChannel for ${media.name} ${e}`)))
           return
         }
