@@ -24,6 +24,7 @@ export interface BankConfig {
   readonly outdir: string,
   readonly media: Readonly<Record<string, EntryConfig>>
   readonly extends?: string
+  readonly default_language: string
 }
 
 export interface EncodeConfig {
@@ -36,18 +37,21 @@ export interface EncodeConfig {
   readonly concurrency?: number
 }
 
-export interface Bank {
+export interface BankProperties {
   readonly name: string
+  readonly id: number
   readonly base: string
   readonly srcdir: string
   readonly languages: readonly string[]
+  readonly default_language: string
   readonly groups: readonly string[]
   readonly hash: string
-  readonly media: Media[]
+  readonly media: MediaProperties[]
 }
 
-export interface Media {
+export interface MediaProperties {
   readonly name: string
+  readonly id: number
   readonly hash: string
   readonly duration: number
   readonly channels: number
@@ -58,5 +62,7 @@ export interface Media {
   readonly loadpath: string
   readonly srcpath: string
   readonly group: string
+  readonly group_index: number
   readonly language: string
+  readonly language_index: number
 }

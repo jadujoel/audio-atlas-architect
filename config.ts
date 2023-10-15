@@ -11,6 +11,7 @@ export const config = {
       base: "/assets/sounds/common",
       rootdir: "sounds/common",
       outdir: "public/assets/sounds/common",
+      default_language: '',
       media: {
         effects: {
           channels: 2,
@@ -24,6 +25,7 @@ export const config = {
       rootdir: "sounds/unicorn",
       outdir: "public/assets/sounds/unicorn",
       extends: 'common',
+      default_language: 'en',
       media: {
         music: {
           channels: 2,

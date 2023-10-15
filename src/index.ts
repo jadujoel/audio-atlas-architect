@@ -6,7 +6,8 @@ import { cpus } from 'node:os'
 import { join, resolve } from 'node:path'
 import sourcemap from 'source-map-support'
 import { parseWaveFileBuffer } from './parse'
-import type { Bank, BankConfig, EncodeConfig, Media } from './types'
+import type { BankConfig, BankProperties, EncodeConfig, MediaProperties } from './types'
+export * from './types'
 sourcemap.install()
 
 function copyDirectory(source: string, target: string): Promise<void> {
@@ -90,7 +91,9 @@ export async function encode (config: EncodeConfig): Promise<Result<void, Error>
       return ok(undefined)
     }
 
+    let project_id = -1
     for (const [project_name, project] of Object.entries(projects)) {
+      project_id++
       const { outdir, rootdir: srcdir, base, media } = project
       const cache_dir = join(banks_cache_dir, project_name)
       let allLanguages: string[] = []
@@ -105,25 +108,30 @@ export async function encode (config: EncodeConfig): Promise<Result<void, Error>
 
       const data_file_cached = `${cache_dir}/media.json`
 
-      const cached_datas: Media[] = await readFile(data_file_cached, { encoding: 'utf-8' })
+      const cached_datas: MediaProperties[] = await readFile(data_file_cached, { encoding: 'utf-8' })
         .then(JSON.parse)
         .catch(_ => [])
 
       await mkdir(cache_dir, { recursive: true })
 
-      for (const [key, value] of Object.entries(media)) {
+      let group_id = -1
+      for (const [group, value] of Object.entries(media)) {
+        group_id++
         const promises: Promise<void>[] = []
         const { bitrate, channels, localization } = value
 
         // we push '' so that it also looks in the root directory
         const languages = ['', ...(localization[0] as string) === '*'
-          ? await find_directories(`${srcdir}/${key}`)
+          ? await find_directories(`${srcdir}/${group}`)
           : localization]
 
         allLanguages.push(...languages)
 
+        let language_id = -1
         for (const language of languages) {
-          const relative = `${key}/${language}`
+          language_id++
+          debug(`Processing '${language}' language_id`)
+          const relative = `${group}/${language}`
           const indir = `${srcdir}/${relative}`
           const targetdir = `${outdir}/${relative}`
           const outdir_cached = `${cache_dir}/${relative}`
@@ -141,6 +149,7 @@ export async function encode (config: EncodeConfig): Promise<Result<void, Error>
 
           const files: readonly string[] = await readdir(indir)
           const more_promises = files.map(async file => {
+            let language_index = language_id
             if (!file.endsWith('wav')) {
               return
             }
@@ -165,7 +174,7 @@ export async function encode (config: EncodeConfig): Promise<Result<void, Error>
               }
             }
 
-            debug("Processing", infile)
+            debug(`Processing ${infile} '${language}' ${language_index}`)
             const inbuffer = await readFile(infile)
             const [err, waveWata] = parseWaveFileBuffer(inbuffer)
             if (err !== null) {
@@ -174,11 +183,14 @@ export async function encode (config: EncodeConfig): Promise<Result<void, Error>
             const { numChannels: inchannels, duration, numSamples } = waveWata
             const gain = inchannels === channels ? 0 : -3
 
-            const data: Media = {
+            const data: MediaProperties = {
               name,
+              id: generateIdentifier({ name, project_id, group_id, language_id: language_index }),
               base,
-              group: key,
+              group,
+              group_index: group_id,
               language,
+              language_index,
               srcpath: infile,
               loadpath: join(base, relative, `${name}.webm`),
               hash: hash_buffer(inbuffer),
@@ -231,7 +243,7 @@ export async function encode (config: EncodeConfig): Promise<Result<void, Error>
       const base_project = (project as BankConfig).extends
       if (base_project !== undefined) {
         const base_project_data_file = `${cache}/banks/${base_project}/media.json`
-        const base_project_datas: Media[] = await readFile(base_project_data_file, { encoding: 'utf-8' }).then(JSON.parse)
+        const base_project_datas: MediaProperties[] = await readFile(base_project_data_file, { encoding: 'utf-8' }).then(JSON.parse)
         for (const data of base_project_datas) {
           const { name, language } = data
           const index = cached_datas.findIndex(datas => datas.name === name && datas.language === language)
@@ -246,13 +258,15 @@ export async function encode (config: EncodeConfig): Promise<Result<void, Error>
 
       const partial = {
         name: project_name,
+        id: project_id,
         base,
         srcdir,
         groups: Object.keys(media),
         languages: [...new Set(allLanguages)],
         media: cached_datas,
+        default_language: project.default_language,
       }
-      const bank: Bank = {
+      const bank: BankProperties = {
         ...partial,
         hash: hash_record(partial),
       }
@@ -275,6 +289,109 @@ export async function encode (config: EncodeConfig): Promise<Result<void, Error>
   }
   return ok(undefined)
 }
+
+// async function encode (file: string,
+//   indir: string,
+//   targetdir: string,
+//   outdir_cached: string,
+//   hashes: Record<string, string>,
+//   cached_hashes: Record<string, string>,
+//   cached_datas: MediaProperties[],
+//   base: string,
+//   relative: string,
+//   group: string,
+//   group_id: number,
+//   language: string,
+//   language_id: number,
+//   channels: number,
+//   bitrate: number,
+//   loglevel: string,
+//   concurrency: number,
+//   promises: Promise<void>[],
+//   project_id: number,
+//   currently_processing: number,
+//   canProceed: () => Promise<void>
+// ) {
+//   if (!file.endsWith('wav')) {
+//     return
+//   }
+//   if (currently_processing > concurrency) {
+//     await canProceed()
+//   }
+//   currently_processing += 1
+
+//   const name = file.replace('.wav', '')
+//   const infile = join(indir, file)
+//   const outfile = join(targetdir, `${name}.webm`)
+//   const outfile_cached = join(outdir_cached, `${name}.webm`)
+
+//   if (hashes[infile] === cached_hashes[infile] && !force) {
+//     const index = cached_datas.findIndex(datas => datas.srcpath === infile)
+//     if (index === -1) {
+//       console.warn("Bad cached data", infile)
+//     } else {
+//       promises.push(copyFile(outfile_cached, outfile))
+//       currently_processing--
+//       return
+//     }
+//   }
+
+//   debug("Processing")
+//   const inbuffer = await readFile(infile)
+//   const [err, waveWata] = parseWaveFileBuffer(inbuffer)
+//   if (err !== null) {
+//     throw err
+//   }
+//   const { numChannels: inchannels, duration, numSamples } = waveWata
+//   const gain = inchannels === channels ? 0 : -3
+
+//   const data: MediaProperties = {
+//     name,
+//     id: generateIdentifier({ name, project_id, group_id, language_id }),
+//     base,
+//     group,
+//     group_index: group_id,
+//     language,
+//     language_index: language_id,
+//     srcpath: infile,
+//     loadpath: join(base, relative, `${name}.webm`),
+//     hash: hash_buffer(inbuffer),
+//     channels,
+//     duration,
+//     num_samples: numSamples,
+//     sample_rate: 48000,
+//     bitrate,
+//   }
+
+//   const index = cached_datas.findIndex(datas => datas.srcpath === infile)
+//   if (index !== -1) {
+//     cached_datas[index] = data
+//   } else {
+//     cached_datas.push(data)
+//   }
+
+//   const cmd = gain === 0
+//     ? `-hide_banner -strict very -loglevel ${loglevel} -i ${infile} -c:a libopus -b:a ${bitrate}k -vbr constrained -ac ${channels} -ar 48000 -filter:a volume=${gain}dB -y ${outfile_cached}`
+//     : `-hide_banner -strict very -loglevel ${loglevel} -i ${infile} -c:a libopus -b:a ${bitrate}k -vbr constrained -ac ${channels} -ar 48000 -y ${outfile_cached}`
+
+//   const { stderr } = await run(cmd)
+
+//   if (stderr !== '') {
+//     logs.push(['[ffmpeg]', outfile_cached, stderr])
+//   }
+
+//   if (config.legacy_support) {
+//     const mp4_file = outfile_cached.replace('.webm', '.mp4')
+//     const cmd = gain === 0
+//       ? `-hide_banner -strict very -loglevel ${loglevel} -i ${infile} -c:a aac -movflags faststart -b:a ${bitrate}k -ac ${channels} -ar 48000 -y ${mp4_file}`
+//       : `-hide_banner -strict very -loglevel ${loglevel} -i ${infile} -c:a aac -movflags faststart -b:a ${bitrate}k -ac ${channels} -ar 48000 -filter:a volume=${gain}dB -y ${mp4_file}`
+//     const { stderr } = await run(cmd)
+//     if (stderr !== '') {
+//       logs.push(['[ffmpeg]', mp4_file ,stderr])
+//     }
+//   }
+//   currently_processing--
+// }
 
 async function find_directories(path: string) {
   const dirents = await readdir(path, { withFileTypes: true })
@@ -373,3 +490,24 @@ async function if_main() {
 }
 
 if_main()
+
+interface Item {
+  readonly name: string
+  readonly project_id: number
+  readonly group_id: number
+  readonly language_id: number
+}
+
+function generateIdentifier(item: Item): number {
+  // Concatenate item fields
+  const itemString = `${item.project_id}${item.group_id}${item.language_id}${item.name}`;
+
+  // Hash the concatenated string
+  const hash = createHash('md5').update(itemString).digest('hex');
+
+  // Convert hash to a number (using the first 8 characters for simplicity)
+  // You can choose a different method if needed
+  const identifier = parseInt(hash.substring(0, 8), 16);
+
+  return identifier;
+}
