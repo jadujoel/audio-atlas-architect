@@ -1,3 +1,4 @@
+import { Result, err, ok } from "neverthrow";
 import type { BankProperties, MediaProperties } from "./types";
 export * from './types';
 
@@ -9,8 +10,7 @@ export interface BankState {
 }
 
 export class Bank {
-  state: BankState
-
+  readonly state: BankState
   constructor (public readonly properties: BankProperties) {
     const current = this.properties.media.filter(item => item.language === this.properties.default_language)
     this.state = {
@@ -21,10 +21,11 @@ export class Bank {
     }
   }
 
-  setLanguage(language: string | number): void {
+  setLanguage(language: string | number): this {
     this.state.active = typeof language === 'string'
       ? this.properties.media.filter(item => item.language === language)
       : this.properties.media.filter(item => item.language_index === language)
+    return this
   }
 
   filterLanguage(language: string | number): MediaProperties[] {
@@ -45,14 +46,20 @@ export class Bank {
       : this.properties.media.filter(item => item.bank_id === bank)
   }
 
-  findName(name: string): MediaProperties | undefined {
-    return this.state.active.find(item => item.name === name)
+  findName(name: string): Result<MediaProperties, Error> {
+    const found = this.state.active.find(item => item.name === name)
       ?? this.state.default.find(item => item.name === name)
       ?? this.state.fallback.find(item => item.name === name)
+    return found === undefined
+      ? err(new Error(`failed to find media with name ${name}`))
+      : ok(found)
   }
 
-  findId(id: number): MediaProperties | undefined {
-    return this.properties.media.find(item => item.id === id)
+  findId(id: number): Result<MediaProperties, Error> {
+    const found = this.properties.media.find(item => item.id === id)
+    return found === undefined
+      ? err(new Error(`failed to find media with id ${id}`))
+      : ok(found)
   }
 }
 
@@ -68,14 +75,14 @@ export interface BankLoaderProperties {
 }
 
 export interface LoadReturn {
-  readonly promise: Promise<AudioBuffer>
+  readonly promise: Promise<Result<AudioBuffer, Error>>
   readonly buffer: AudioBuffer
 }
 
 export class BankLoader {
-  state: BankLoaderState
-  empty: LoadReturn
-  bank: Bank
+  readonly state: BankLoaderState
+  readonly empty: LoadReturn
+  readonly bank: Bank
   constructor (public readonly properties: BankLoaderProperties) {
     this.bank = new Bank(properties.config)
     this.state = {
@@ -83,27 +90,17 @@ export class BankLoader {
     }
     const emptyBuffer = this.properties.context.createBuffer(1, 8, this.properties.context.sampleRate)
     this.empty = {
-      promise: Promise.resolve(emptyBuffer),
-      buffer: emptyBuffer
+      promise: Promise.resolve(err(new Error('empty buffer'))),
+      buffer: emptyBuffer,
     }
   }
 
-  loadId(id: number): LoadReturn {
-    const media = this.bank.findId(id)
-    if (media === undefined) {
-      console.debug('failed to find media with id', id)
-      return this.empty
-    }
-    return this.loadMedia(media)
+  loadId(id: number): Result<LoadReturn, Error> {
+    return this.bank.findId(id).andThen(found => ok(this.loadMedia(found)))
   }
 
-  loadName(name: string): LoadReturn {
-    const media = this.bank.findName(name)
-    if (media === undefined) {
-      console.debug('failed to find media with name', name)
-      return this.empty
-    }
-    return this.loadMedia(media)
+  loadName(name: string): Result<LoadReturn, Error> {
+    return this.bank.findName(name).andThen(found => ok(this.loadMedia(found)))
   }
 
   loadGroup(group: string | number): LoadReturn[] {
@@ -124,35 +121,51 @@ export class BankLoader {
   }
 
   loadMedia(media: MediaProperties): LoadReturn {
-    let item = this.state.items.get(media.id)
-    if (item === undefined) {
-      // immediatly create an empty buffer with the number of channels and sample rate and num_samples
-      // once fetching is done, we will replace the buffer with the actual data
-      const context = this.properties.context
-      const num_samples = Math.ceil(media.num_samples * (context.sampleRate / media.sample_rate))
-      const buffer = this.properties.context.createBuffer(media.channels, num_samples, context.sampleRate)
-      const loadpath = this.properties.useMp4 ? media.loadpath.replace('.webm', '.mp4') : media.loadpath
-      const url = `${this.properties.host}${loadpath}`
-      const promise = fetch(url)
-        .then(response => response.arrayBuffer())
-        .then(buffer => this.properties.context.decodeAudioData(buffer))
-        .then(decoded => {
+    const item = this.state.items.get(media.id)
+    if (item !== undefined) {
+      return item
+    }
+    const context = this.properties.context
+    const num_samples = Math.ceil(media.num_samples * (context.sampleRate / media.sample_rate))
+    const buffer = context.createBuffer(media.channels, num_samples, context.sampleRate)
+    const loadpath = this.properties.useMp4 ? media.loadpath.replace('.webm', '.mp4') : media.loadpath
+    const url = `${this.properties.host}${loadpath}`
+    const newItem: LoadReturn = {
+      buffer,
+      promise: new Promise<Result<AudioBuffer, Error>>(
+      async resolve => {
+        const response = await fetch(url).catch(_ => undefined)
+        if (response === undefined) {
+          resolve(err(new Error(`failed to fetch ${url}`)))
+          return
+        }
+        if (!response.ok) {
+          resolve(err(new Error(`server return bad response for ${response.url} with status ${response.status}`)))
+          return
+        }
+        const array = await response.arrayBuffer().catch(_ => undefined)
+        if (array === undefined) {
+          resolve(err(new Error(`failed to convert response to arraybuffer for ${response.url}`)))
+          return
+        }
+        const decoded = await context.decodeAudioData(array).catch(_ => undefined)
+        if (decoded === undefined) {
+          resolve(err(new Error(`failed to decode audio data for ${media.name}`)))
+          return
+        }
+        try {
           for (let channel = 0; channel < media.channels; channel++) {
             buffer.copyToChannel(decoded.getChannelData(channel), channel)
           }
-          return buffer
-        })
-        .catch(_ => {
-          console.debug(_);
-          return Promise.reject(new Error(`failed to fetch ${url}`))
-        })
-      item = {
-        promise,
-        buffer
-      }
-      this.state.items.set(media.id, item)
+        } catch (e) {
+          resolve(err(new Error(`failed to copy audio data using copyToChannel for ${media.name} ${e}`)))
+          return
+        }
+        resolve(ok(buffer))
+      })
     }
-    return item
+    this.state.items.set(media.id, newItem)
+    return newItem
   }
 
   setPrioritiesByGroups(group: string[]): void {
