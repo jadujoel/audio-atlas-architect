@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+message Bank {
+  string name = 1;
+  string base = 2;
+  string srcdir = 3;
+  repeated string languages = 4;
+  repeated string groups = 5;
+  string hash = 6;
+  repeated Media media = 7;
+}
+
+message Media {
+  string name = 1;
+  string hash = 2;
+  double duration = 3;
+  int32 channels = 4;
+  int32 num_samples = 5;
+  int32 sample_rate = 6;
+  int32 bitrate = 7;
+  string base = 8;
+  string loadpath = 9;
+  string srcpath = 10;
+  string group = 11;
+  string language = 12;
+}
