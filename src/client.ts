@@ -21,16 +21,28 @@ export class Bank {
     }
   }
 
-  setLanguage(language: string): void {
-    this.state.active = this.properties.media.filter(item => item.language === language)
+  setLanguage(language: string | number): void {
+    this.state.active = typeof language === 'string'
+      ? this.properties.media.filter(item => item.language === language)
+      : this.properties.media.filter(item => item.language_index === language)
   }
 
-  filterLanguage(language: string): MediaProperties[] {
-    return this.properties.media.filter(item => item.language === language)
+  filterLanguage(language: string | number): MediaProperties[] {
+    return typeof language === 'string'
+      ? this.properties.media.filter(item => item.language === language)
+      : this.properties.media.filter(item => item.language_index === language)
   }
 
-  filterGroup(group: string): MediaProperties[] {
-    return this.properties.media.filter(item => item.group === group)
+  filterGroup(group: string | number): MediaProperties[] {
+    return typeof group === 'string'
+      ? this.properties.media.filter(item => item.group === group)
+      : this.properties.media.filter(item => item.group_index === group)
+  }
+
+  filterBank(bank: string | number): MediaProperties[] {
+    return typeof bank === 'string'
+      ? this.properties.media.filter(item => item.bank === bank)
+      : this.properties.media.filter(item => item.bank_id === bank)
   }
 
   findName(name: string): MediaProperties | undefined {
@@ -94,17 +106,17 @@ export class BankLoader {
     return this.loadMedia(media)
   }
 
-  loadGroup(group: string): LoadReturn[] {
+  loadGroup(group: string | number): LoadReturn[] {
     return this.bank.filterGroup(group).map(media => this.loadMedia(media))
   }
 
-  loadLanguage(language: string): LoadReturn[] {
-    this.bank.setLanguage(language)
-    return this.bank.state.active.map(media => this.loadMedia(media))
+  loadLanguage(language: string | number): LoadReturn[] {
+    return this.bank.filterLanguage(language).map(media => this.loadMedia(media))
   }
 
-  loadBank(): LoadReturn[] {
-    return this.bank.properties.media.map(media => this.loadMedia(media))
+  loadBank(name: string): LoadReturn[] {
+    return this.bank.filterBank(name)
+      .map(media => this.loadMedia(media))
   }
 
   loadAll(): LoadReturn[] {
@@ -125,7 +137,6 @@ export class BankLoader {
         .then(response => response.arrayBuffer())
         .then(buffer => this.properties.context.decodeAudioData(buffer))
         .then(decoded => {
-          console.log('name', media.name, 'media_num_samples', media.num_samples, 'decoded num samples', decoded.length)
           for (let channel = 0; channel < media.channels; channel++) {
             buffer.copyToChannel(decoded.getChannelData(channel), channel)
           }

@@ -52,6 +52,12 @@ export interface BankProperties {
 export interface MediaProperties {
   readonly name: string
   readonly id: number
+  readonly bank: string
+  readonly bank_id: number
+  readonly group: string
+  readonly group_index: number
+  readonly language: string
+  readonly language_index: number
   readonly hash: string
   readonly duration: number
   readonly channels: number
@@ -61,8 +67,4 @@ export interface MediaProperties {
   readonly base: string
   readonly loadpath: string
   readonly srcpath: string
-  readonly group: string
-  readonly group_index: number
-  readonly language: string
-  readonly language_index: number
 }

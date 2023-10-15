@@ -186,6 +186,8 @@ export async function encode (config: EncodeConfig): Promise<Result<void, Error>
             const data: MediaProperties = {
               name,
               id: generateIdentifier({ name, project_id, group_id, language_id: language_index }),
+              bank: project_name,
+              bank_id: project_id,
               base,
               group,
               group_index: group_id,
