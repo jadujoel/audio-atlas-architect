@@ -1,6 +1,6 @@
 {
   "name": "audio-atlas-architect",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Encode Game Sounds into Sound Banks with json metadata",
   "main": "./dist/index.mjs",
   "module": "dist/index.js",
@@ -8,8 +8,8 @@
   "exports": {
     ".": {
       "default": {
-         "default": "./dist/index.mjs",
-         "types": "./dist/index.d.ts"
+        "default": "./dist/index.mjs",
+        "types": "./dist/index.d.ts"
       }
     },
     "./client": {
